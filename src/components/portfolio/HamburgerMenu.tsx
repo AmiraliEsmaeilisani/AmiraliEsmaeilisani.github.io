@@ -115,14 +115,14 @@ export default function HamburgerMenu() {
         {isMenuOpen && (
           <motion.div
             className="fixed inset-0 z-40 flex flex-col items-center justify-center"
-            style={{ backgroundColor: 'rgba(10, 17, 40, 0.97)' }}
+            style={{ backgroundColor: 'rgba(10, 17, 40, 0.98)' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
           >
             {/* Menu Items */}
-            <nav className="flex flex-col items-center gap-2">
+            <nav className="flex flex-col items-center gap-3">
               <AnimatePresence mode="popLayout">
                 {menuItems.map((item, index) => (
                   <motion.button
@@ -163,7 +163,7 @@ export default function HamburgerMenu() {
                   rel="noopener noreferrer"
                   aria-label={social.label}
                   data-cursor-hover
-                  className="text-[#B0B0B0] transition-colors duration-300 hover:text-[#0066FF]"
+                  className="text-[#808080] transition-colors duration-300 hover:text-[#0066FF]"
                 >
                   <social.icon size={20} strokeWidth={1.8} />
                 </a>

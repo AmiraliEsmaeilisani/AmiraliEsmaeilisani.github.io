@@ -2,7 +2,7 @@
 
 import { useNavigationStore } from '@/store/useNavigationStore'
 import { projects } from '@/data/portfolio-data'
-import { ArrowLeft, ExternalLink, Github } from 'lucide-react'
+import { ArrowRight, ExternalLink, Github } from 'lucide-react'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { useState, MouseEvent } from 'react'
 
@@ -44,7 +44,7 @@ function ProjectCard({
         rotateY,
         transformStyle: 'preserve-3d',
         perspective: '1000px',
-        borderColor: isHovered ? '#0066FF20' : '#1C39BB25',
+        borderColor: isHovered ? '#0066FF20' : '#1C39BB20',
         backgroundColor: '#0A1128',
         boxShadow: isHovered ? '0 0 20px #0066FF15' : 'none',
       }}
@@ -57,9 +57,18 @@ function ProjectCard({
       <div
         className="relative h-40 w-full overflow-hidden rounded-t-xl"
         style={{
-          background: 'linear-gradient(135deg, #1C39BB20, #0A1128)',
+          background: 'linear-gradient(135deg, #1C39BB15, #0A1128 60%, #FF5E0008)',
         }}
       >
+        {/* Decorative elements */}
+        <div
+          className="absolute top-3 left-3 w-6 h-6 rounded-full"
+          style={{ backgroundColor: '#1C39BB12' }}
+        />
+        <div
+          className="absolute bottom-3 right-4 w-10 h-0.5 rounded-full"
+          style={{ backgroundColor: '#FF5E0018' }}
+        />
         {/* Overlay titleEn */}
         <div className="absolute inset-0 flex items-center justify-center">
           <span
@@ -80,7 +89,7 @@ function ProjectCard({
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="flex h-8 w-8 items-center justify-center rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-110"
-              style={{ backgroundColor: '#0A112880', color: '#B0B0B0' }}
+              style={{ backgroundColor: '#0A112880', color: '#808080' }}
               data-cursor-hover
             >
               <Github size={16} />
@@ -93,7 +102,7 @@ function ProjectCard({
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="flex h-8 w-8 items-center justify-center rounded-lg backdrop-blur-sm transition-all duration-200 hover:scale-110"
-              style={{ backgroundColor: '#0A112880', color: '#B0B0B0' }}
+              style={{ backgroundColor: '#0A112880', color: '#808080' }}
               data-cursor-hover
             >
               <ExternalLink size={16} />
@@ -111,8 +120,8 @@ function ProjectCard({
           {project.title}
         </h3>
         <p
-          className="mb-4 line-clamp-3 text-sm leading-relaxed"
-          style={{ color: '#B0B0B0' }}
+          className="mb-4 line-clamp-2 text-sm leading-[1.8]"
+          style={{ color: '#808080' }}
         >
           {project.description}
         </p>
@@ -154,7 +163,7 @@ function ProjectCard({
             openProject(project.id)
           }}
         >
-          مشاهده جزئیات
+          مشاهده جزئیات →
         </button>
       </div>
     </motion.div>
@@ -173,12 +182,12 @@ export default function ProjectsPage() {
           className="flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-300 hover:scale-105"
           style={{
             backgroundColor: '#1C39BB15',
-            color: '#B0B0B0',
+            color: '#808080',
             transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
           }}
           data-cursor-hover
         >
-          <ArrowLeft size={20} />
+          <ArrowRight size={20} />
         </button>
         <div>
           <h1
@@ -188,8 +197,8 @@ export default function ProjectsPage() {
             پروژه‌ها
           </h1>
           <p
-            className="mt-1 text-sm"
-            style={{ color: '#B0B0B0' }}
+            className="mt-1 text-sm leading-relaxed"
+            style={{ color: '#808080' }}
           >
             پروژه‌های تحقیقاتی و اجرایی من
           </p>

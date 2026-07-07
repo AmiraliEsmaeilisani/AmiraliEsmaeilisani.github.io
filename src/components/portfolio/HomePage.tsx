@@ -79,7 +79,7 @@ export default function HomePage() {
 
           <motion.p
             className="text-lg md:text-xl mb-3"
-            style={{ color: '#B0B0B0' }}
+            style={{ color: '#808080' }}
             variants={fadeInUp}
             custom={1}
           >
@@ -152,7 +152,7 @@ export default function HomePage() {
             ease: 'easeInOut',
           }}
         >
-          <ChevronDown className="w-6 h-6" style={{ color: '#B0B0B0' }} />
+          <ChevronDown className="w-5 h-5" style={{ color: '#808080' }} />
         </motion.div>
       </section>
 
@@ -171,7 +171,7 @@ export default function HomePage() {
               آخرین نوشته‌ها
             </h2>
             <div
-              className="w-16 h-1 rounded-full mb-10"
+              className="w-12 h-1 rounded-full mb-10"
               style={{ backgroundColor: '#0066FF' }}
             />
           </motion.div>
@@ -188,7 +188,7 @@ export default function HomePage() {
                 className="interactive rounded-2xl overflow-hidden cursor-pointer border-l-[3px] border-l-transparent transition-all duration-300"
                 style={{
                   backgroundColor: '#0A1128',
-                  borderColor: '#1C39BB30',
+                  borderColor: '#1C39BB20',
                   borderLeftWidth: '3px',
                 }}
                 variants={scrollReveal}
@@ -207,11 +207,20 @@ export default function HomePage() {
               >
                 {/* Colored Placeholder */}
                 <div
-                  className="h-40"
+                  className="relative h-40"
                   style={{
-                    background: 'linear-gradient(135deg, #0A1128, rgba(28, 57, 187, 0.19))',
+                    background: 'linear-gradient(135deg, #0A1128, rgba(28, 57, 187, 0.12))',
                   }}
-                />
+                >
+                  <div
+                    className="absolute top-3 right-4 w-6 h-6 rounded-full"
+                    style={{ backgroundColor: '#1C39BB12' }}
+                  />
+                  <div
+                    className="absolute bottom-3 left-5 w-10 h-0.5 rounded-full"
+                    style={{ backgroundColor: '#FF5E0018' }}
+                  />
+                </div>
 
                 <div className="p-6">
                   <h3
@@ -223,14 +232,14 @@ export default function HomePage() {
 
                   <p
                     className="text-sm mb-3"
-                    style={{ color: '#B0B0B0' }}
+                    style={{ color: '#808080' }}
                   >
                     {post.date}
                   </p>
 
                   <p
-                    className="text-sm leading-relaxed mb-4 line-clamp-2"
-                    style={{ color: '#B0B0B0' }}
+                    className="text-sm leading-[1.8] mb-4 line-clamp-2"
+                    style={{ color: '#808080' }}
                   >
                     {post.summary}
                   </p>
@@ -266,7 +275,7 @@ export default function HomePage() {
               className="text-sm font-medium transition-opacity duration-300 hover:opacity-80 cursor-pointer"
               style={{ color: '#0066FF' }}
             >
-              مشاهده همه نوشته‌ها
+              مشاهده همه نوشته‌ها →
             </button>
           </motion.div>
         </div>
@@ -287,7 +296,7 @@ export default function HomePage() {
               پروژه‌های منتخب
             </h2>
             <div
-              className="w-16 h-1 rounded-full mb-10"
+              className="w-12 h-1 rounded-full mb-10"
               style={{ backgroundColor: '#FF5E00' }}
             />
           </motion.div>
@@ -304,7 +313,7 @@ export default function HomePage() {
                 className="interactive rounded-2xl overflow-hidden cursor-pointer transition-all duration-300"
                 style={{
                   backgroundColor: '#0A1128',
-                  border: '1px solid #1C39BB30',
+                  border: '1px solid #1C39BB20',
                 }}
                 variants={scrollReveal}
                 onClick={() => openProject(project.id)}
@@ -322,11 +331,20 @@ export default function HomePage() {
               >
                 {/* Colored Placeholder Top Area */}
                 <div
-                  className="h-36"
+                  className="relative h-36"
                   style={{
-                    background: 'linear-gradient(135deg, rgba(28, 57, 187, 0.125), #0A1128)',
+                    background: 'linear-gradient(135deg, rgba(28, 57, 187, 0.08), #0A1128 60%, #FF5E0006)',
                   }}
-                />
+                >
+                  <div
+                    className="absolute top-3 left-3 w-5 h-5 rounded-full"
+                    style={{ backgroundColor: '#1C39BB10' }}
+                  />
+                  <div
+                    className="absolute bottom-3 right-4 w-8 h-0.5 rounded-full"
+                    style={{ backgroundColor: '#FF5E0015' }}
+                  />
+                </div>
 
                 <div className="p-5">
                   <h3
@@ -337,8 +355,8 @@ export default function HomePage() {
                   </h3>
 
                   <p
-                    className="text-sm leading-relaxed mb-4 line-clamp-2"
-                    style={{ color: '#B0B0B0' }}
+                    className="text-sm leading-[1.8] mb-4 line-clamp-2"
+                    style={{ color: '#808080' }}
                   >
                     {project.description}
                   </p>
@@ -378,7 +396,7 @@ export default function HomePage() {
               className="text-sm font-medium transition-opacity duration-300 hover:opacity-80 cursor-pointer"
               style={{ color: '#0066FF' }}
             >
-              مشاهده همه پروژه‌ها
+              مشاهده همه پروژه‌ها →
             </button>
           </motion.div>
         </div>

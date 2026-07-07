@@ -7,14 +7,14 @@ interface MousePosition {
   y: number;
 }
 
-const LERP_FACTOR = 0.15;
+const LERP_FACTOR = 0.25;
 const DOT_SIZE = 8;
 const DOT_HOVER_SIZE = 4;
-const FOLLOWER_SIZE = 40;
-const FOLLOWER_HOVER_SCALE = 1.8;
-const HOVER_TRANSITION = 'cubic-bezier(0.25, 0.1, 0.25, 1) 0.3s';
-const RIPPLE_DURATION = 600;
-const RIPPLE_MAX_SIZE = 60;
+const FOLLOWER_SIZE = 36;
+const FOLLOWER_HOVER_SCALE = 1.6;
+const HOVER_TRANSITION = 'cubic-bezier(0.25, 0.1, 0.25, 1) 0.15s';
+const RIPPLE_DURATION = 400;
+const RIPPLE_MAX_SIZE = 50;
 const DOT_COLOR = '#0066FF';
 const FOLLOWER_COLOR = 'rgba(255, 94, 0, 0.6)';
 const FOLLOWER_HOVER_COLOR = '#1C39BB';

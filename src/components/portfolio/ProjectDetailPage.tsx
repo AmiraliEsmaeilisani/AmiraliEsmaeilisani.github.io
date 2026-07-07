@@ -2,7 +2,7 @@
 
 import { useNavigationStore } from '@/store/useNavigationStore'
 import { projects } from '@/data/portfolio-data'
-import { ArrowRight, Github, ExternalLink, Calendar, Layers } from 'lucide-react'
+import { ArrowRight, Github, ExternalLink, Image, Layers } from 'lucide-react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 
@@ -20,7 +20,7 @@ export default function ProjectDetailPage() {
             className="flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-300 hover:scale-105"
             style={{
               backgroundColor: '#1C39BB15',
-              color: '#B0B0B0',
+              color: '#808080',
               transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
             }}
             data-cursor-hover
@@ -30,9 +30,9 @@ export default function ProjectDetailPage() {
         </div>
         <div
           className="mt-8 rounded-xl border p-8 text-center"
-          style={{ borderColor: '#1C39BB25', backgroundColor: '#0A1128' }}
+          style={{ borderColor: '#1C39BB20', backgroundColor: '#0A1128' }}
         >
-          <p style={{ color: '#B0B0B0' }}>پروژه مورد نظر یافت نشد.</p>
+          <p style={{ color: '#808080' }}>پروژه مورد نظر یافت نشد.</p>
         </div>
       </section>
     )
@@ -48,7 +48,7 @@ export default function ProjectDetailPage() {
             className="flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-300 hover:scale-105"
             style={{
               backgroundColor: '#1C39BB15',
-              color: '#B0B0B0',
+              color: '#808080',
               transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
             }}
             data-cursor-hover
@@ -62,7 +62,7 @@ export default function ProjectDetailPage() {
             >
               {project.title}
             </h1>
-            <p className="mt-1 text-sm" style={{ color: '#B0B0B0' }}>
+            <p className="mt-1 text-sm" style={{ color: '#808080' }}>
               <span dir="ltr">{project.titleEn}</span>
             </p>
           </div>
@@ -120,9 +120,9 @@ export default function ProjectDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
         className="mb-8 rounded-xl border p-6"
-        style={{ borderColor: '#1C39BB25', backgroundColor: '#0A1128' }}
+        style={{ borderColor: '#1C39BB20', backgroundColor: '#0A1128' }}
       >
-        <div className="markdown-content" style={{ color: '#B0B0B0' }}>
+        <div className="markdown-content" style={{ color: '#808080', lineHeight: '1.9' }}>
           <ReactMarkdown>{project.descriptionFull}</ReactMarkdown>
         </div>
       </motion.div>
@@ -133,7 +133,7 @@ export default function ProjectDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
         className="mb-8 rounded-xl border p-6"
-        style={{ borderColor: '#1C39BB25', backgroundColor: '#0A1128' }}
+        style={{ borderColor: '#1C39BB20', backgroundColor: '#0A1128' }}
       >
         <div className="mb-4 flex items-center gap-2">
           <Layers size={18} style={{ color: '#0066FF' }} />
@@ -175,10 +175,10 @@ export default function ProjectDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
         className="rounded-xl border p-6"
-        style={{ borderColor: '#1C39BB25', backgroundColor: '#0A1128' }}
+        style={{ borderColor: '#1C39BB20', backgroundColor: '#0A1128' }}
       >
         <div className="mb-4 flex items-center gap-2">
-          <Calendar size={18} style={{ color: '#0066FF' }} />
+          <Image size={18} style={{ color: '#0066FF' }} />
           <h2 className="text-lg font-bold" style={{ color: '#F5F5F5' }}>
             گالری تصاویر
           </h2>
@@ -189,7 +189,7 @@ export default function ProjectDetailPage() {
               <div
                 key={idx}
                 className="h-48 overflow-hidden rounded-lg border"
-                style={{ borderColor: '#1C39BB25' }}
+                style={{ borderColor: '#1C39BB20' }}
               >
                 {img ? (
                   <img
@@ -213,9 +213,9 @@ export default function ProjectDetailPage() {
         ) : (
           <div
             className="flex h-32 items-center justify-center rounded-lg"
-            style={{ backgroundColor: '#1C39BB10' }}
+            style={{ backgroundColor: '#1C39BB08' }}
           >
-            <p className="text-sm" style={{ color: '#B0B0B0' }}>
+            <p className="text-sm" style={{ color: '#808080' }}>
               تصاویری موجود نیست
             </p>
           </div>

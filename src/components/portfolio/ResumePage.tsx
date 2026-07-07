@@ -37,7 +37,7 @@ function SectionCard({ children, className = '' }: { children: React.ReactNode; 
       className={className}
       style={{
         backgroundColor: '#0A1128',
-        border: '1px solid #1C39BB25',
+        border: '1px solid #1C39BB20',
         borderRadius: '0.75rem',
         padding: '1.5rem',
       }}
@@ -57,8 +57,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       initial={{ opacity: 0, x: 30 }}
       animate={isInView ? { opacity: 1, x: 0 } : { opacity: 0, x: 30 }}
       transition={transition}
-      className="text-2xl font-bold mb-8"
-      style={{ color: '#F5F5F5' }}
+      className="text-2xl font-bold mb-8 pb-3"
+      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB20' }}
     >
       {children}
     </motion.h2>
@@ -82,7 +82,7 @@ export default function ResumePage() {
           data-cursor-hover
           className="flex items-center gap-2 mb-6 text-sm transition-colors duration-300"
           style={{
-            color: '#B0B0B0',
+            color: '#808080',
             transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
           }}
           onMouseEnter={(e) => {
@@ -113,8 +113,8 @@ export default function ResumePage() {
       {/* About / Bio Section */}
       <SectionCard className="mb-8">
         <p
-          className="text-lg leading-relaxed max-w-3xl mb-6"
-          style={{ color: '#B0B0B0' }}
+          className="text-lg leading-[1.9] max-w-3xl mb-6"
+          style={{ color: '#808080' }}
         >
           {resumeData.bio}
         </p>
@@ -126,7 +126,7 @@ export default function ResumePage() {
               className="inline-flex items-center rounded-full px-3 py-1 text-xs"
               style={{
                 backgroundColor: '#1C39BB20',
-                color: '#B0B0B0',
+                color: '#808080',
                 border: '1px solid #1C39BB30',
               }}
             >
@@ -165,7 +165,7 @@ export default function ResumePage() {
             style={{
               right: '5px',
               width: '2px',
-              backgroundColor: '#1C39BB40',
+              backgroundColor: '#1C39BB30',
             }}
           />
 
@@ -203,7 +203,7 @@ export default function ResumePage() {
             style={{
               right: '5px',
               width: '2px',
-              backgroundColor: '#1C39BB40',
+              backgroundColor: '#1C39BB30',
             }}
           />
 
@@ -225,7 +225,7 @@ export default function ResumePage() {
       >
         <button
           data-cursor-hover
-          className="flex items-center gap-3 px-8 py-4 rounded-xl text-lg font-bold transition-all duration-300 cursor-pointer"
+          className="flex items-center gap-3 px-8 py-4 rounded-xl text-base font-bold transition-all duration-300 cursor-pointer"
           style={{
             backgroundColor: '#0A1128',
             border: '2px solid #FF5E00',
@@ -246,7 +246,7 @@ export default function ResumePage() {
             // PDF download placeholder
           }}
         >
-          <Download className="h-5 w-5" />
+          <Download className="h-4 w-4" />
           <span>دانلود رزومه (PDF)</span>
         </button>
       </motion.div>
@@ -285,7 +285,7 @@ function EducationTimelineItem({ edu, index }: { edu: typeof resumeData.educatio
         className="rounded-xl p-5"
         style={{
           backgroundColor: '#0A1128',
-          border: '1px solid #1C39BB25',
+          border: '1px solid #1C39BB20',
         }}
       >
         {/* Period badge */}
@@ -318,7 +318,7 @@ function EducationTimelineItem({ edu, index }: { edu: typeof resumeData.educatio
 
         {/* Description */}
         {edu.description && (
-          <p className="text-sm leading-relaxed mt-2" style={{ color: '#B0B0B0' }}>
+          <p className="text-sm leading-[1.8] mt-2" style={{ color: '#808080' }}>
             {edu.description}
           </p>
         )}
@@ -358,7 +358,7 @@ function ExperienceTimelineItem({ exp, index }: { exp: typeof resumeData.experie
         className="rounded-xl p-5"
         style={{
           backgroundColor: '#0A1128',
-          border: '1px solid #1C39BB25',
+          border: '1px solid #1C39BB20',
         }}
       >
         {/* Period badge */}
@@ -380,7 +380,7 @@ function ExperienceTimelineItem({ exp, index }: { exp: typeof resumeData.experie
         </p>
 
         {/* Description */}
-        <p className="text-sm leading-relaxed" style={{ color: '#B0B0B0' }}>
+        <p className="text-sm leading-[1.8]" style={{ color: '#808080' }}>
           {exp.description}
         </p>
       </div>
@@ -406,7 +406,7 @@ function SkillBar({ skill, index }: { skill: typeof resumeData.skills[0]; index:
           <span className="text-sm font-medium" style={{ color: '#F5F5F5' }}>
             {skill.name}
           </span>
-          <span className="text-xs" style={{ color: '#B0B0B0' }}>
+          <span className="text-xs" style={{ color: '#808080' }}>
             {skill.category}
           </span>
         </div>

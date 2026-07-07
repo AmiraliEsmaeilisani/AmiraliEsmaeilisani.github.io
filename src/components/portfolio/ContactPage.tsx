@@ -52,7 +52,7 @@ export default function ContactPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 pb-6">
         <motion.button
           onClick={goBack}
-          className="flex items-center gap-2 text-[#B0B0B0] hover:text-[#0066FF] transition-colors mb-8"
+          className="flex items-center gap-2 text-[#808080] hover:text-[#0066FF] transition-colors mb-8"
           style={{ transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)' }}
           data-cursor-hover
         >
@@ -69,7 +69,7 @@ export default function ContactPage() {
           تماس با من
         </motion.h1>
         <motion.p
-          className="text-[#B0B0B0] text-lg"
+          className="text-[#808080] text-lg leading-relaxed"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
@@ -97,7 +97,7 @@ export default function ContactPage() {
               >
                 <Wrapper
                   {...wrapperProps}
-                  className="block p-6 rounded-xl border border-[#1C39BB25] bg-[#0A1128] hover:border-[#0066FF50] transition-all duration-300 interactive"
+                  className="block p-6 rounded-xl border border-[#1C39BB20] bg-[#0A1128] hover:border-[#0066FF50] transition-all duration-300 interactive"
                   style={{ transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)' }}
                   data-cursor-hover
                 >
@@ -105,9 +105,9 @@ export default function ContactPage() {
                     <div className="w-10 h-10 rounded-lg bg-[#0066FF15] flex items-center justify-center">
                       <Icon className="w-5 h-5 text-[#0066FF]" />
                     </div>
-                    <span className="text-[#B0B0B0] text-sm">{item.label}</span>
+                    <span className="text-[#808080] text-sm">{item.label}</span>
                   </div>
-                  <p className="text-[#F5F5F5] font-medium" dir="ltr">
+                  <p className="text-[#F5F5F5] font-medium text-sm" dir="ltr">
                     {item.value}
                   </p>
                 </Wrapper>
@@ -118,7 +118,7 @@ export default function ContactPage() {
 
         {/* CTA Section */}
         <motion.div
-          className="mt-12 p-8 rounded-xl border border-[#1C39BB25] bg-[#0A1128] text-center"
+          className="mt-12 p-8 rounded-xl border border-[#1C39BB20] bg-[#0A1128] text-center"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1], delay: 0.6 }}
@@ -126,16 +126,16 @@ export default function ContactPage() {
           <h2 className="text-xl font-bold text-[#F5F5F5] mb-3">
             پروژه‌ای در ذهن دارید؟
           </h2>
-          <p className="text-[#B0B0B0] mb-6 max-w-md mx-auto">
+          <p className="text-[#808080] mb-6 max-w-md mx-auto leading-relaxed">
             اگر پروژه تحقیقاتی یا اجرایی دارید که می‌توانم در آن کمک کنم، خوشحال می‌شوم از طریق ایمیل با من در ارتباط باشید.
           </p>
           <a
             href="mailto:mehdi.ahmadi@example.com"
-            className="inline-flex items-center gap-2 bg-[#FF5E00] text-white px-8 py-3 rounded-full font-medium hover:bg-[#FF7A33] transition-all duration-300"
+            className="inline-flex items-center gap-2 bg-[#FF5E00] text-white px-8 py-3 rounded-full font-medium hover:bg-[#FF7A33] transition-all duration-300 text-sm"
             style={{ transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)' }}
             data-cursor-hover
           >
-            <Mail className="w-5 h-5" />
+            <Mail className="w-4 h-4" />
             <span>ارسال ایمیل</span>
           </a>
         </motion.div>

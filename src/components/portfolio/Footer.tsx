@@ -7,9 +7,9 @@ const socialLinks = [
   { href: 'https://linkedin.com', icon: Linkedin, label: 'LinkedIn' },
   { href: 'mailto:mehdi@example.com', icon: Mail, label: 'Email' },
   { href: 'https://t.me/', icon: Send, label: 'Telegram' },
-];
+]
 
-const techStack = ['Next.js', 'TypeScript', 'Tailwind CSS', 'Framer Motion'];
+const techStack = ['Next.js', 'TypeScript', 'Tailwind CSS', 'Framer Motion']
 
 export default function Footer() {
   return (
@@ -34,7 +34,7 @@ export default function Footer() {
               data-cursor-hover
               className="transition-colors duration-300"
               style={{
-                color: '#B0B0B0',
+                color: '#808080',
                 transitionTimingFunction: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
               }}
               onMouseEnter={(e) => {
@@ -52,14 +52,14 @@ export default function Footer() {
         {/* Separator + Copyright */}
         <div className="flex flex-col items-center gap-2">
           <div
-            className="w-16"
-            style={{ height: '1px', backgroundColor: '#1C39BB30' }}
+            className="w-12"
+            style={{ height: '1px', backgroundColor: '#1C39BB20' }}
           />
-          <p className="text-sm" style={{ color: '#B0B0B0' }}>
+          <p className="text-sm" style={{ color: '#808080' }}>
             طراحی و توسعه با <span>❤</span> توسط مهدی احمدی
           </p>
-          <p className="text-xs" style={{ color: '#B0B0B060' }}>
-            © ۱۴۰۳ تمامی حقوق محفوظ است
+          <p className="text-xs" style={{ color: '#505050' }}>
+            © ۱۴۰۴ تمامی حقوق محفوظ است
           </p>
         </div>
 
@@ -70,8 +70,8 @@ export default function Footer() {
               key={tech}
               className="rounded-full px-3 py-1 text-xs"
               style={{
-                backgroundColor: '#1C39BB15',
-                color: '#B0B0B060',
+                backgroundColor: '#1C39BB10',
+                color: '#808080',
               }}
             >
               {tech}
