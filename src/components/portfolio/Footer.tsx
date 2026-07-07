@@ -59,7 +59,7 @@ export default function Footer() {
             طراحی و توسعه با <span>❤</span> توسط مهدی احمدی
           </p>
           <p className="text-xs" style={{ color: '#505050' }}>
-            © ۱۴۰۴ تمامی حقوق محفوظ است
+            © ۱۴۰۵ تمامی حقوق محفوظ است
           </p>
         </div>
 

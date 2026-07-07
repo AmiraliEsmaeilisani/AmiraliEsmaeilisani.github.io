@@ -2,7 +2,7 @@
 
 import { useNavigationStore } from '@/store/useNavigationStore'
 import { blogPosts } from '@/data/portfolio-data'
-import { ArrowRight, Calendar, Clock, BookOpen } from 'lucide-react'
+import { ArrowRight, Calendar, Clock, BookOpen, Copy, Check } from 'lucide-react'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -21,7 +21,6 @@ function processMathInText(text: string): React.ReactNode[] {
 
   let match: RegExpExecArray | null
 
-  // First pass: find all display and inline math positions
   interface MathSegment {
     start: number
     end: number
@@ -44,7 +43,7 @@ function processMathInText(text: string): React.ReactNode[] {
   // Find inline math (avoiding already-matched display math)
   while ((match = inlineMathRegex.exec(text)) !== null) {
     const isInsideDisplay = segments.some(
-      (s) => match!.index > s.start && match!.index < s.end
+      (s) => match!.index >= s.start && match!.index < s.end
     )
     if (!isInsideDisplay) {
       segments.push({
@@ -61,7 +60,6 @@ function processMathInText(text: string): React.ReactNode[] {
 
   // Build parts
   segments.forEach((seg) => {
-    // Add text before this segment
     if (seg.start > lastIndex) {
       parts.push(
         <span key={key++}>
@@ -70,7 +68,6 @@ function processMathInText(text: string): React.ReactNode[] {
       )
     }
 
-    // Render math
     try {
       const html = katex.renderToString(seg.formula, {
         displayMode: seg.displayMode,
@@ -107,7 +104,6 @@ function processMathInText(text: string): React.ReactNode[] {
     lastIndex = seg.end
   })
 
-  // Add remaining text
   if (lastIndex < text.length) {
     parts.push(
       <span key={key++}>
@@ -119,10 +115,97 @@ function processMathInText(text: string): React.ReactNode[] {
   return parts.length > 0 ? parts : [text]
 }
 
+// Recursively process math in React children (handles strings, arrays, and elements)
+function processMathChildren(children: React.ReactNode): React.ReactNode {
+  if (typeof children === 'string') {
+    return processMathInText(children)
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, i) => {
+      if (typeof child === 'string') {
+        return <React.Fragment key={i}>{processMathInText(child)}</React.Fragment>
+      }
+      if (React.isValidElement(child) && child.props.children) {
+        return React.cloneElement(child as React.ReactElement<{ children: React.ReactNode }>, {
+          children: processMathChildren(child.props.children),
+        })
+      }
+      return child
+    })
+  }
+  return children
+}
+
 function estimateReadingTime(content: string): number {
   const wordsPerMinute = 200
   const words = content.trim().split(/\s+/).length
   return Math.max(1, Math.ceil(words / wordsPerMinute))
+}
+
+function CodeBlock({ language, codeString }: { language: string; codeString: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(codeString)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // fallback
+      const textarea = document.createElement('textarea')
+      textarea.value = codeString
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div className="my-5 rounded-xl overflow-hidden">
+      <div
+        className="px-4 py-2.5 text-xs font-medium flex items-center justify-between"
+        style={{
+          backgroundColor: '#060D1A',
+          color: '#808080',
+          direction: 'ltr',
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>{language}</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 text-xs transition-colors duration-200 hover:text-[#0066FF] cursor-pointer"
+          style={{ color: copied ? '#22c55e' : '#808080' }}
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          <span>{copied ? 'کپی شد' : 'کپی'}</span>
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={vscDarkPlus}
+        language={language}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          borderRadius: 0,
+          backgroundColor: '#060D1A',
+          fontSize: '0.85rem',
+          lineHeight: '1.7',
+          padding: '1.25rem',
+          fontWeight: 500,
+        }}
+        codeTagProps={{
+          style: {
+            fontWeight: 600,
+          }
+        }}
+      >
+        {codeString}
+      </SyntaxHighlighter>
+    </div>
+  )
 }
 
 function ReadingProgressBar() {
@@ -294,6 +377,7 @@ export default function BlogPostPage() {
                           color: '#FF5E00',
                           border: '1px solid #1C39BB30',
                           direction: 'ltr',
+                          fontWeight: 600,
                         }}
                         {...props}
                       >
@@ -302,39 +386,7 @@ export default function BlogPostPage() {
                     )
                   }
 
-                  return (
-                    <div className="my-5 rounded-xl overflow-hidden" style={{ border: '1px solid #1C39BB40' }}>
-                      {match && (
-                        <div
-                          className="px-4 py-2.5 text-xs font-medium flex items-center justify-between"
-                          style={{
-                            backgroundColor: '#060D1A',
-                            color: '#B0B0B0',
-                            borderBottom: '1px solid #1C39BB40',
-                            direction: 'ltr',
-                          }}
-                        >
-                          <span>{match[1]}</span>
-                          <span style={{ color: '#1C39BB60' }}>code</span>
-                        </div>
-                      )}
-                      <SyntaxHighlighter
-                        style={vscDarkPlus}
-                        language={match ? match[1] : 'text'}
-                        PreTag="div"
-                        customStyle={{
-                          margin: 0,
-                          borderRadius: 0,
-                          backgroundColor: '#060D1A',
-                          fontSize: '0.85rem',
-                          lineHeight: '1.7',
-                          padding: '1.25rem',
-                        }}
-                      >
-                        {codeString}
-                      </SyntaxHighlighter>
-                    </div>
-                  )
+                  return <CodeBlock language={match[1]} codeString={codeString} />
                 },
                 h1({ children }) {
                   return (
@@ -342,7 +394,7 @@ export default function BlogPostPage() {
                       className="text-2xl font-bold mb-4 mt-10 pb-3"
                       style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}
                     >
-                      {processMathInText(String(children))}
+                      {processMathChildren(children)}
                     </h1>
                   )
                 },
@@ -352,7 +404,7 @@ export default function BlogPostPage() {
                       className="text-xl font-bold mb-3 mt-10 pb-2"
                       style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}
                     >
-                      {processMathInText(String(children))}
+                      {processMathChildren(children)}
                     </h2>
                   )
                 },
@@ -362,46 +414,31 @@ export default function BlogPostPage() {
                       className="text-lg font-bold mb-2 mt-8"
                       style={{ color: '#F5F5F5' }}
                     >
-                      {processMathInText(String(children))}
+                      {processMathChildren(children)}
                     </h3>
                   )
                 },
                 p({ children }) {
-                  if (typeof children === 'string') {
-                    return (
-                      <p
-                        className="text-base leading-[1.9] my-5"
-                        style={{ color: '#B0B0B0' }}
-                      >
-                        {processMathInText(children)}
-                      </p>
-                    )
-                  }
-                  // For complex children (with bold/italic etc), process text nodes
                   return (
                     <p
                       className="text-base leading-[1.9] my-5"
                       style={{ color: '#B0B0B0' }}
                     >
-                      {children}
+                      {processMathChildren(children)}
                     </p>
                   )
                 },
                 strong({ children }) {
                   return (
                     <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>
-                      {typeof children === 'string'
-                        ? processMathInText(children)
-                        : children}
+                      {processMathChildren(children)}
                     </strong>
                   )
                 },
                 em({ children }) {
                   return (
                     <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>
-                      {typeof children === 'string'
-                        ? processMathInText(children)
-                        : children}
+                      {processMathChildren(children)}
                     </em>
                   )
                 },
@@ -428,7 +465,7 @@ export default function BlogPostPage() {
                 li({ children }) {
                   return (
                     <li className="text-base leading-relaxed pl-2">
-                      {children}
+                      {processMathChildren(children)}
                     </li>
                   )
                 },
@@ -442,7 +479,7 @@ export default function BlogPostPage() {
                         color: '#B0B0B0',
                       }}
                     >
-                      {children}
+                      {processMathChildren(children)}
                     </blockquote>
                   )
                 },
@@ -455,7 +492,7 @@ export default function BlogPostPage() {
                       className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]"
                       style={{ color: '#0066FF' }}
                     >
-                      {children}
+                      {processMathChildren(children)}
                     </a>
                   )
                 },
