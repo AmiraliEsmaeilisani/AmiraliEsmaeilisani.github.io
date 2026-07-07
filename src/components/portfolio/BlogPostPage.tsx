@@ -52,88 +52,47 @@ function preProcessMath(content: string): {
   return { processed, mathMap }
 }
 
-// Post-process React tree: find placeholder text nodes and replace with KaTeX HTML
-function injectMath(nodes: React.ReactNode, mathMap: Map<string, { html: string; display: boolean }>): React.ReactNode {
-  if (typeof nodes === 'string') {
-    // Check if this string IS a placeholder token
-    if (mathMap.has(nodes)) {
-      const { html, display } = mathMap.get(nodes)!
-      if (display) {
-        return (
-          <div
-            className="my-6 overflow-x-auto text-center"
-            dir="ltr"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        )
-      }
-      return (
-        <span
-          dir="ltr"
-          className="inline"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      )
-    }
+// Replace math tokens inside React children
+function replaceTokens(children: React.ReactNode, mathMap: Map<string, { html: string; display: boolean }>): React.ReactNode {
+  if (typeof children === 'string') {
+    const tokenPattern = /((?:MATHBLOCK|MATHINLINE)\d+)/g
+    if (!tokenPattern.test(children)) return children
+    tokenPattern.lastIndex = 0
 
-    // Check if string CONTAINS placeholder tokens (e.g., "text MATHINLINE0 more text")
-    let hasToken = false
-    for (const key of mathMap.keys()) {
-      if (nodes.includes(key)) {
-        hasToken = true
-        break
-      }
-    }
-
-    if (hasToken) {
-      // Split by all token patterns and process each part
-      const tokenPattern = /((?:MATHBLOCK|MATHINLINE)\d+)/g
-      const parts = nodes.split(tokenPattern)
-      return parts.map((part, i) => {
-        if (mathMap.has(part)) {
-          const { html, display } = mathMap.get(part)!
-          if (display) {
-            return (
-              <div
-                key={i}
-                className="my-6 overflow-x-auto text-center"
-                dir="ltr"
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            )
-          }
+    const parts = children.split(tokenPattern)
+    return parts.map((part, i) => {
+      if (mathMap.has(part)) {
+        const { html, display } = mathMap.get(part)!
+        if (display) {
           return (
-            <span
+            <div
               key={i}
+              className="my-6 overflow-x-auto text-center"
               dir="ltr"
-              className="inline"
               dangerouslySetInnerHTML={{ __html: html }}
             />
           )
         }
-        return <React.Fragment key={i}>{part}</React.Fragment>
-      })
-    }
-
-    return nodes
+        return (
+          <span
+            key={i}
+            dir="ltr"
+            className="inline"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        )
+      }
+      return <React.Fragment key={i}>{part}</React.Fragment>
+    })
   }
 
-  if (Array.isArray(nodes)) {
-    return nodes.map((child, i) => (
-      <React.Fragment key={i}>{injectMath(child, mathMap)}</React.Fragment>
+  if (Array.isArray(children)) {
+    return children.map((child, i) => (
+      <React.Fragment key={i}>{replaceTokens(child, mathMap)}</React.Fragment>
     ))
   }
 
-  if (React.isValidElement(nodes)) {
-    const props = nodes.props as { children?: React.ReactNode }
-    if (props.children) {
-      return React.cloneElement(nodes as React.ReactElement<{ children: React.ReactNode }>, {
-        children: injectMath(props.children, mathMap),
-      })
-    }
-  }
-
-  return nodes
+  return children
 }
 
 function estimateReadingTime(content: string): number {
@@ -369,157 +328,154 @@ export default function BlogPostPage() {
           }}
         >
           <div className="markdown-content" dir="rtl">
-            {injectMath(
-              <ReactMarkdown
-                components={{
-                  code({ className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const isInline = !match
-                    const codeString = String(children).replace(/\n$/, '')
+            <ReactMarkdown
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || '')
+                  const isInline = !match
+                  const codeString = String(children).replace(/\n$/, '')
 
-                    if (isInline) {
-                      return (
-                        <code
-                          className="px-1.5 py-0.5 rounded text-sm"
-                          style={{
-                            backgroundColor: '#1C39BB20',
-                            color: '#FF5E00',
-                            border: '1px solid #1C39BB30',
-                            direction: 'ltr',
-                            fontWeight: 600,
-                            fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
-                          }}
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      )
-                    }
-
-                    return <CodeBlock language={match[1]} codeString={codeString} />
-                  },
-                  h1({ children }) {
+                  if (isInline) {
                     return (
-                      <h1
-                        className="text-2xl font-bold mb-4 mt-10 pb-3"
-                        style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}
-                      >
-                        {children}
-                      </h1>
-                    )
-                  },
-                  h2({ children }) {
-                    return (
-                      <h2
-                        className="text-xl font-bold mb-3 mt-10 pb-2"
-                        style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}
-                      >
-                        {children}
-                      </h2>
-                    )
-                  },
-                  h3({ children }) {
-                    return (
-                      <h3
-                        className="text-lg font-bold mb-2 mt-8"
-                        style={{ color: '#F5F5F5' }}
-                      >
-                        {children}
-                      </h3>
-                    )
-                  },
-                  p({ children }) {
-                    return (
-                      <p
-                        className="text-base leading-[1.9] my-5"
-                        style={{ color: '#B0B0B0' }}
-                      >
-                        {children}
-                      </p>
-                    )
-                  },
-                  strong({ children }) {
-                    return (
-                      <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>
-                        {children}
-                      </strong>
-                    )
-                  },
-                  em({ children }) {
-                    return (
-                      <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>
-                        {children}
-                      </em>
-                    )
-                  },
-                  ul({ children }) {
-                    return (
-                      <ul
-                        className="list-disc list-inside my-4 space-y-2.5"
-                        style={{ color: '#B0B0B0' }}
-                      >
-                        {children}
-                      </ul>
-                    )
-                  },
-                  ol({ children }) {
-                    return (
-                      <ol
-                        className="list-decimal list-inside my-4 space-y-2.5"
-                        style={{ color: '#B0B0B0' }}
-                      >
-                        {children}
-                      </ol>
-                    )
-                  },
-                  li({ children }) {
-                    return (
-                      <li className="text-base leading-relaxed pl-2">
-                        {children}
-                      </li>
-                    )
-                  },
-                  blockquote({ children }) {
-                    return (
-                      <blockquote
-                        className="border-r-4 pr-5 py-3 my-6 rounded-r-lg"
+                      <code
+                        className="px-1.5 py-0.5 rounded text-sm"
                         style={{
-                          borderColor: '#0066FF',
-                          backgroundColor: '#0066FF08',
-                          color: '#B0B0B0',
+                          backgroundColor: '#1C39BB20',
+                          color: '#FF5E00',
+                          border: '1px solid #1C39BB30',
+                          direction: 'ltr',
+                          fontWeight: 600,
+                          fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                         }}
+                        {...props}
                       >
                         {children}
-                      </blockquote>
+                      </code>
                     )
-                  },
-                  a({ href, children }) {
-                    return (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]"
-                        style={{ color: '#0066FF' }}
-                      >
-                        {children}
-                      </a>
-                    )
-                  },
-                  hr() {
-                    return (
-                      <hr
-                        className="my-10"
-                        style={{ borderColor: '#1C39BB20' }}
-                      />
-                    )
-                  },
-                }}
-              >
-                {processedContent}
-              </ReactMarkdown>,
-              mathMap
-            )}
+                  }
+
+                  return <CodeBlock language={match[1]} codeString={codeString} />
+                },
+                h1({ children }) {
+                  return (
+                    <h1
+                      className="text-2xl font-bold mb-4 mt-10 pb-3"
+                      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}
+                    >
+                      {replaceTokens(children, mathMap)}
+                    </h1>
+                  )
+                },
+                h2({ children }) {
+                  return (
+                    <h2
+                      className="text-xl font-bold mb-3 mt-10 pb-2"
+                      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}
+                    >
+                      {replaceTokens(children, mathMap)}
+                    </h2>
+                  )
+                },
+                h3({ children }) {
+                  return (
+                    <h3
+                      className="text-lg font-bold mb-2 mt-8"
+                      style={{ color: '#F5F5F5' }}
+                    >
+                      {replaceTokens(children, mathMap)}
+                    </h3>
+                  )
+                },
+                p({ children }) {
+                  return (
+                    <p
+                      className="text-base leading-[1.9] my-5"
+                      style={{ color: '#B0B0B0' }}
+                    >
+                      {replaceTokens(children, mathMap)}
+                    </p>
+                  )
+                },
+                strong({ children }) {
+                  return (
+                    <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>
+                      {replaceTokens(children, mathMap)}
+                    </strong>
+                  )
+                },
+                em({ children }) {
+                  return (
+                    <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>
+                      {replaceTokens(children, mathMap)}
+                    </em>
+                  )
+                },
+                ul({ children }) {
+                  return (
+                    <ul
+                      className="list-disc list-inside my-4 space-y-2.5"
+                      style={{ color: '#B0B0B0' }}
+                    >
+                      {children}
+                    </ul>
+                  )
+                },
+                ol({ children }) {
+                  return (
+                    <ol
+                      className="list-decimal list-inside my-4 space-y-2.5"
+                      style={{ color: '#B0B0B0' }}
+                    >
+                      {children}
+                    </ol>
+                  )
+                },
+                li({ children }) {
+                  return (
+                    <li className="text-base leading-relaxed pl-2">
+                      {replaceTokens(children, mathMap)}
+                    </li>
+                  )
+                },
+                blockquote({ children }) {
+                  return (
+                    <blockquote
+                      className="border-r-4 pr-5 py-3 my-6 rounded-r-lg"
+                      style={{
+                        borderColor: '#0066FF',
+                        backgroundColor: '#0066FF08',
+                        color: '#B0B0B0',
+                      }}
+                    >
+                      {replaceTokens(children, mathMap)}
+                    </blockquote>
+                  )
+                },
+                a({ href, children }) {
+                  return (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]"
+                      style={{ color: '#0066FF' }}
+                    >
+                      {replaceTokens(children, mathMap)}
+                    </a>
+                  )
+                },
+                hr() {
+                  return (
+                    <hr
+                      className="my-10"
+                      style={{ borderColor: '#1C39BB20' }}
+                    />
+                  )
+                },
+              }}
+            >
+              {processedContent}
+            </ReactMarkdown>
           </div>
         </div>
       </motion.div>
