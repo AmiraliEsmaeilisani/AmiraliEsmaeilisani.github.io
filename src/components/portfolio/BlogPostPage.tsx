@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import React, { useMemo, useState, useEffect } from 'react'
 
 // Pre-process content: replace $$...$$ and $...$ with placeholder tokens,
@@ -97,6 +98,8 @@ function replaceTokens(children: React.ReactNode, mathMap: Map<string, { html: s
     const props = children.props as Record<string, unknown>
     if ('children' in props && props.children != null) {
       const newChildren = replaceTokens(props.children as React.ReactNode, mathMap)
+      // If children didn't change, return original element
+      if (newChildren === props.children) return children
       return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
         children: newChildren,
       })
@@ -347,6 +350,18 @@ export default function BlogPostPage() {
                   const codeString = String(children).replace(/\n$/, '')
 
                   if (isInline) {
+                    // Check if inline code contains a math token
+                    const tokenMatch = codeString.match(/^(MATHINLINE\d+)$/);
+                    if (tokenMatch && mathMap.has(codeString)) {
+                      const { html } = mathMap.get(codeString)!;
+                      return (
+                        <span
+                          dir="ltr"
+                          className="inline"
+                          dangerouslySetInnerHTML={{ __html: html }}
+                        />
+                      );
+                    }
                     return (
                       <code
                         className="px-1.5 py-0.5 rounded text-sm"
@@ -360,7 +375,7 @@ export default function BlogPostPage() {
                         }}
                         {...props}
                       >
-                        {children}
+                        {replaceTokens(children, mathMap)}
                       </code>
                     )
                   }
@@ -398,6 +413,19 @@ export default function BlogPostPage() {
                   )
                 },
                 p({ children }) {
+                  // Check if the paragraph is purely a display math token
+                  const text = typeof children === 'string' ? children.trim() : '';
+                  const displayMatch = text.match(/^MATHBLOCK(\d+)$/);
+                  if (displayMatch && mathMap.has(text)) {
+                    const { html } = mathMap.get(text)!;
+                    return (
+                      <div
+                        className="my-6 overflow-x-auto text-center"
+                        dir="ltr"
+                        dangerouslySetInnerHTML={{ __html: html }}
+                      />
+                    );
+                  }
                   return (
                     <p
                       className="text-base leading-[1.9] my-5"
