@@ -92,6 +92,17 @@ function replaceTokens(children: React.ReactNode, mathMap: Map<string, { html: s
     ))
   }
 
+  // Handle React elements: recursively process their children
+  if (React.isValidElement(children)) {
+    const props = children.props as Record<string, unknown>
+    if ('children' in props && props.children != null) {
+      const newChildren = replaceTokens(props.children as React.ReactNode, mathMap)
+      return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+        children: newChildren,
+      })
+    }
+  }
+
   return children
 }
 
