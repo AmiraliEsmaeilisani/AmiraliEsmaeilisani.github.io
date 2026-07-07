@@ -10,130 +10,130 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import katex from 'katex'
 import React, { useMemo, useState, useEffect } from 'react'
 
-function processMathInText(text: string): React.ReactNode[] {
-  const parts: React.ReactNode[] = []
-  let lastIndex = 0
-  let key = 0
+// Pre-process content: replace $$...$$ and $...$ with placeholder tokens,
+// store KaTeX HTML, return tokenized content + render map
+function preProcessMath(content: string): {
+  processed: string
+  mathMap: Map<string, { html: string; display: boolean }>
+} {
+  const mathMap = new Map<string, { html: string; display: boolean }>()
+  let counter = 0
 
-  // Match display math $$...$$ first, then inline math $...$
-  const displayMathRegex = /\$\$([\s\S]+?)\$\$/g
-  const inlineMathRegex = /\$([^\$\n]+?)\$/g
-
-  let match: RegExpExecArray | null
-
-  interface MathSegment {
-    start: number
-    end: number
-    formula: string
-    displayMode: boolean
-  }
-
-  const segments: MathSegment[] = []
-
-  // Find display math
-  while ((match = displayMathRegex.exec(text)) !== null) {
-    segments.push({
-      start: match.index,
-      end: match.index + match[0].length,
-      formula: match[1].trim(),
-      displayMode: true,
-    })
-  }
-
-  // Find inline math (avoiding already-matched display math)
-  while ((match = inlineMathRegex.exec(text)) !== null) {
-    const isInsideDisplay = segments.some(
-      (s) => match!.index >= s.start && match!.index < s.end
-    )
-    if (!isInsideDisplay) {
-      segments.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        formula: match[1].trim(),
-        displayMode: false,
-      })
-    }
-  }
-
-  // Sort by position
-  segments.sort((a, b) => a.start - b.start)
-
-  // Build parts
-  segments.forEach((seg) => {
-    if (seg.start > lastIndex) {
-      parts.push(
-        <span key={key++}>
-          {text.slice(lastIndex, seg.start)}
-        </span>
-      )
-    }
-
+  // Replace display math $$...$$ first
+  let processed = content.replace(/\$\$([\s\S]+?)\$\$/g, (_, formula) => {
+    const token = `MATHBLOCK${counter++}`
     try {
-      const html = katex.renderToString(seg.formula, {
-        displayMode: seg.displayMode,
+      const html = katex.renderToString(formula.trim(), {
+        displayMode: true,
         throwOnError: false,
       })
+      mathMap.set(token, { html, display: true })
+    } catch {
+      mathMap.set(token, { html: `<code style="color:red">${formula}</code>`, display: true })
+    }
+    return token
+  })
 
-      if (seg.displayMode) {
-        parts.push(
+  // Replace inline math $...$
+  processed = processed.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
+    const token = `MATHINLINE${counter++}`
+    try {
+      const html = katex.renderToString(formula.trim(), {
+        displayMode: false,
+        throwOnError: false,
+      })
+      mathMap.set(token, { html, display: false })
+    } catch {
+      mathMap.set(token, { html: `<code style="color:red">${formula}</code>`, display: false })
+    }
+    return token
+  })
+
+  return { processed, mathMap }
+}
+
+// Post-process React tree: find placeholder text nodes and replace with KaTeX HTML
+function injectMath(nodes: React.ReactNode, mathMap: Map<string, { html: string; display: boolean }>): React.ReactNode {
+  if (typeof nodes === 'string') {
+    // Check if this string IS a placeholder token
+    if (mathMap.has(nodes)) {
+      const { html, display } = mathMap.get(nodes)!
+      if (display) {
+        return (
           <div
-            key={key++}
             className="my-6 overflow-x-auto text-center"
             dir="ltr"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )
-      } else {
-        parts.push(
-          <span
-            key={key++}
-            dir="ltr"
-            className="inline"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        )
       }
-    } catch {
-      parts.push(
-        <code key={key++} className="text-red-400">
-          {seg.formula}
-        </code>
+      return (
+        <span
+          dir="ltr"
+          className="inline"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       )
     }
 
-    lastIndex = seg.end
-  })
-
-  if (lastIndex < text.length) {
-    parts.push(
-      <span key={key++}>
-        {text.slice(lastIndex)}
-      </span>
-    )
-  }
-
-  return parts.length > 0 ? parts : [text]
-}
-
-// Recursively process math in React children (handles strings, arrays, and elements)
-function processMathChildren(children: React.ReactNode): React.ReactNode {
-  if (typeof children === 'string') {
-    return processMathInText(children)
-  }
-  if (Array.isArray(children)) {
-    return children.map((child, i) => {
-      if (typeof child === 'string') {
-        return <React.Fragment key={i}>{processMathInText(child)}</React.Fragment>
+    // Check if string CONTAINS placeholder tokens (e.g., "text MATHINLINE0 more text")
+    let hasToken = false
+    for (const key of mathMap.keys()) {
+      if (nodes.includes(key)) {
+        hasToken = true
+        break
       }
-      if (React.isValidElement(child) && child.props.children) {
-        return React.cloneElement(child as React.ReactElement<{ children: React.ReactNode }>, {
-          children: processMathChildren(child.props.children),
-        })
-      }
-      return child
-    })
+    }
+
+    if (hasToken) {
+      // Split by all token patterns and process each part
+      const tokenPattern = /((?:MATHBLOCK|MATHINLINE)\d+)/g
+      const parts = nodes.split(tokenPattern)
+      return parts.map((part, i) => {
+        if (mathMap.has(part)) {
+          const { html, display } = mathMap.get(part)!
+          if (display) {
+            return (
+              <div
+                key={i}
+                className="my-6 overflow-x-auto text-center"
+                dir="ltr"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            )
+          }
+          return (
+            <span
+              key={i}
+              dir="ltr"
+              className="inline"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>
+      })
+    }
+
+    return nodes
   }
-  return children
+
+  if (Array.isArray(nodes)) {
+    return nodes.map((child, i) => (
+      <React.Fragment key={i}>{injectMath(child, mathMap)}</React.Fragment>
+    ))
+  }
+
+  if (React.isValidElement(nodes)) {
+    const props = nodes.props as { children?: React.ReactNode }
+    if (props.children) {
+      return React.cloneElement(nodes as React.ReactElement<{ children: React.ReactNode }>, {
+        children: injectMath(props.children, mathMap),
+      })
+    }
+  }
+
+  return nodes
 }
 
 function estimateReadingTime(content: string): number {
@@ -195,10 +195,12 @@ function CodeBlock({ language, codeString }: { language: string; codeString: str
           lineHeight: '1.7',
           padding: '1.25rem',
           fontWeight: 500,
+          fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
         }}
         codeTagProps={{
           style: {
             fontWeight: 600,
+            fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
           }
         }}
       >
@@ -246,6 +248,12 @@ export default function BlogPostPage() {
   const post = useMemo(
     () => blogPosts.find((p) => p.id === selectedBlogPost),
     [selectedBlogPost]
+  )
+
+  // Pre-process math BEFORE ReactMarkdown
+  const { processed: processedContent, mathMap } = useMemo(
+    () => post ? preProcessMath(post.content) : { processed: '', mathMap: new Map() },
+    [post]
   )
 
   if (!post) {
@@ -361,153 +369,157 @@ export default function BlogPostPage() {
           }}
         >
           <div className="markdown-content" dir="rtl">
-            <ReactMarkdown
-              components={{
-                code({ className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  const isInline = !match
-                  const codeString = String(children).replace(/\n$/, '')
+            {injectMath(
+              <ReactMarkdown
+                components={{
+                  code({ className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '')
+                    const isInline = !match
+                    const codeString = String(children).replace(/\n$/, '')
 
-                  if (isInline) {
+                    if (isInline) {
+                      return (
+                        <code
+                          className="px-1.5 py-0.5 rounded text-sm"
+                          style={{
+                            backgroundColor: '#1C39BB20',
+                            color: '#FF5E00',
+                            border: '1px solid #1C39BB30',
+                            direction: 'ltr',
+                            fontWeight: 600,
+                            fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                          }}
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      )
+                    }
+
+                    return <CodeBlock language={match[1]} codeString={codeString} />
+                  },
+                  h1({ children }) {
                     return (
-                      <code
-                        className="px-1.5 py-0.5 rounded text-sm"
-                        style={{
-                          backgroundColor: '#1C39BB20',
-                          color: '#FF5E00',
-                          border: '1px solid #1C39BB30',
-                          direction: 'ltr',
-                          fontWeight: 600,
-                        }}
-                        {...props}
+                      <h1
+                        className="text-2xl font-bold mb-4 mt-10 pb-3"
+                        style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}
                       >
                         {children}
-                      </code>
+                      </h1>
                     )
-                  }
-
-                  return <CodeBlock language={match[1]} codeString={codeString} />
-                },
-                h1({ children }) {
-                  return (
-                    <h1
-                      className="text-2xl font-bold mb-4 mt-10 pb-3"
-                      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}
-                    >
-                      {processMathChildren(children)}
-                    </h1>
-                  )
-                },
-                h2({ children }) {
-                  return (
-                    <h2
-                      className="text-xl font-bold mb-3 mt-10 pb-2"
-                      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}
-                    >
-                      {processMathChildren(children)}
-                    </h2>
-                  )
-                },
-                h3({ children }) {
-                  return (
-                    <h3
-                      className="text-lg font-bold mb-2 mt-8"
-                      style={{ color: '#F5F5F5' }}
-                    >
-                      {processMathChildren(children)}
-                    </h3>
-                  )
-                },
-                p({ children }) {
-                  return (
-                    <p
-                      className="text-base leading-[1.9] my-5"
-                      style={{ color: '#B0B0B0' }}
-                    >
-                      {processMathChildren(children)}
-                    </p>
-                  )
-                },
-                strong({ children }) {
-                  return (
-                    <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>
-                      {processMathChildren(children)}
-                    </strong>
-                  )
-                },
-                em({ children }) {
-                  return (
-                    <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>
-                      {processMathChildren(children)}
-                    </em>
-                  )
-                },
-                ul({ children }) {
-                  return (
-                    <ul
-                      className="list-disc list-inside my-4 space-y-2.5"
-                      style={{ color: '#B0B0B0' }}
-                    >
-                      {children}
-                    </ul>
-                  )
-                },
-                ol({ children }) {
-                  return (
-                    <ol
-                      className="list-decimal list-inside my-4 space-y-2.5"
-                      style={{ color: '#B0B0B0' }}
-                    >
-                      {children}
-                    </ol>
-                  )
-                },
-                li({ children }) {
-                  return (
-                    <li className="text-base leading-relaxed pl-2">
-                      {processMathChildren(children)}
-                    </li>
-                  )
-                },
-                blockquote({ children }) {
-                  return (
-                    <blockquote
-                      className="border-r-4 pr-5 py-3 my-6 rounded-r-lg"
-                      style={{
-                        borderColor: '#0066FF',
-                        backgroundColor: '#0066FF08',
-                        color: '#B0B0B0',
-                      }}
-                    >
-                      {processMathChildren(children)}
-                    </blockquote>
-                  )
-                },
-                a({ href, children }) {
-                  return (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]"
-                      style={{ color: '#0066FF' }}
-                    >
-                      {processMathChildren(children)}
-                    </a>
-                  )
-                },
-                hr() {
-                  return (
-                    <hr
-                      className="my-10"
-                      style={{ borderColor: '#1C39BB20' }}
-                    />
-                  )
-                },
-              }}
-            >
-              {post.content}
-            </ReactMarkdown>
+                  },
+                  h2({ children }) {
+                    return (
+                      <h2
+                        className="text-xl font-bold mb-3 mt-10 pb-2"
+                        style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}
+                      >
+                        {children}
+                      </h2>
+                    )
+                  },
+                  h3({ children }) {
+                    return (
+                      <h3
+                        className="text-lg font-bold mb-2 mt-8"
+                        style={{ color: '#F5F5F5' }}
+                      >
+                        {children}
+                      </h3>
+                    )
+                  },
+                  p({ children }) {
+                    return (
+                      <p
+                        className="text-base leading-[1.9] my-5"
+                        style={{ color: '#B0B0B0' }}
+                      >
+                        {children}
+                      </p>
+                    )
+                  },
+                  strong({ children }) {
+                    return (
+                      <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>
+                        {children}
+                      </strong>
+                    )
+                  },
+                  em({ children }) {
+                    return (
+                      <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>
+                        {children}
+                      </em>
+                    )
+                  },
+                  ul({ children }) {
+                    return (
+                      <ul
+                        className="list-disc list-inside my-4 space-y-2.5"
+                        style={{ color: '#B0B0B0' }}
+                      >
+                        {children}
+                      </ul>
+                    )
+                  },
+                  ol({ children }) {
+                    return (
+                      <ol
+                        className="list-decimal list-inside my-4 space-y-2.5"
+                        style={{ color: '#B0B0B0' }}
+                      >
+                        {children}
+                      </ol>
+                    )
+                  },
+                  li({ children }) {
+                    return (
+                      <li className="text-base leading-relaxed pl-2">
+                        {children}
+                      </li>
+                    )
+                  },
+                  blockquote({ children }) {
+                    return (
+                      <blockquote
+                        className="border-r-4 pr-5 py-3 my-6 rounded-r-lg"
+                        style={{
+                          borderColor: '#0066FF',
+                          backgroundColor: '#0066FF08',
+                          color: '#B0B0B0',
+                        }}
+                      >
+                        {children}
+                      </blockquote>
+                    )
+                  },
+                  a({ href, children }) {
+                    return (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]"
+                        style={{ color: '#0066FF' }}
+                      >
+                        {children}
+                      </a>
+                    )
+                  },
+                  hr() {
+                    return (
+                      <hr
+                        className="my-10"
+                        style={{ borderColor: '#1C39BB20' }}
+                      />
+                    )
+                  },
+                }}
+              >
+                {processedContent}
+              </ReactMarkdown>,
+              mathMap
+            )}
           </div>
         </div>
       </motion.div>
