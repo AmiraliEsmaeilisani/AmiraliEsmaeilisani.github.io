@@ -11,69 +11,85 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import React, { useMemo, useState, useEffect } from 'react'
 
-// Pre-process content: replace $$...$$ and $...$ with placeholder tokens,
-// store KaTeX HTML, return tokenized content + render map
-function preProcessMath(content: string): {
-  processed: string
-  mathMap: Map<string, { html: string; display: boolean }>
-} {
-  const mathMap = new Map<string, { html: string; display: boolean }>()
-  let counter = 0
+/* ── Segment types ───────────────────────────────────────────────────── */
 
-  // Replace display math $$...$$ first
-  let processed = content.replace(/\$\$([\s\S]+?)\$\$/g, (_, formula) => {
-    const token = `MATHBLOCK${counter++}`
-    try {
-      const html = katex.renderToString(formula.trim(), {
-        displayMode: true,
-        throwOnError: false,
-      })
-      mathMap.set(token, { html, display: true })
-    } catch {
-      mathMap.set(token, { html: `<code style="color:red">${formula}</code>`, display: true })
-    }
-    return token
-  })
+type Segment =
+  | { type: 'markdown'; content: string }     // text with $...$ tokens inside
+  | { type: 'display-math'; formula: string }
 
-  // Replace inline math $...$
-  processed = processed.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
-    const token = `MATHINLINE${counter++}`
-    try {
-      const html = katex.renderToString(formula.trim(), {
-        displayMode: false,
-        throwOnError: false,
-      })
-      mathMap.set(token, { html, display: false })
-    } catch {
-      mathMap.set(token, { html: `<code style="color:red">${formula}</code>`, display: false })
-    }
-    return token
-  })
+/* ── KaTeX render helper ─────────────────────────────────────────────── */
 
-  return { processed, mathMap }
+function renderKatex(formula: string, displayMode: boolean): string {
+  try {
+    return katex.renderToString(formula, { displayMode, throwOnError: false })
+  } catch {
+    return `<code style="color:red">${formula}</code>`
+  }
 }
 
-// Replace math tokens inside React children
-function replaceTokens(children: React.ReactNode, mathMap: Map<string, { html: string; display: boolean }>): React.ReactNode {
+/* ── Build math map for inline tokens ────────────────────────────────── */
+/* Uses (?<!\$) and (?!\$) to skip $$...$$ display math delimiters        */
+
+function buildInlineMathMap(content: string): Map<string, string> {
+  const map = new Map<string, string>()
+  let counter = 0
+  const pattern = /(?<!\$)\$([^\$\n]+?)\$(?!\$)/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(content)) !== null) {
+    const token = `IMATH${counter++}`
+    map.set(token, match[1].trim())
+  }
+  return map
+}
+
+/* ── Replace inline $...$ with tokens in a text segment ──────────────── */
+
+function tokenizeInlineMath(content: string, map: Map<string, string>): string {
+  let counter = 0
+  return content.replace(/(?<!\$)\$([^\$\n]+?)\$(?!\$)/g, () => {
+    const keys = Array.from(map.keys())
+    return keys[counter++] || '??'
+  })
+}
+
+/* ── Parse content: split at $$...$$ only, keep $...$ inside text ───── */
+
+function parseContent(content: string): Segment[] {
+  const segments: Segment[] = []
+  const displayPattern = /\$\$([\s\S]+?)\$\$/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = displayPattern.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'markdown', content: content.slice(lastIndex, match.index) })
+    }
+    segments.push({ type: 'display-math', formula: match[1].trim() })
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < content.length) {
+    segments.push({ type: 'markdown', content: content.slice(lastIndex) })
+  }
+
+  return segments
+}
+
+/* ── Inline math token replacement in React children ─────────────────── */
+
+function replaceInlineTokens(
+  children: React.ReactNode,
+  mathMap: Map<string, string>
+): React.ReactNode {
   if (typeof children === 'string') {
-    const tokenPattern = /((?:MATHBLOCK|MATHINLINE)\d+)/g
+    const tokenPattern = /(IMATH\d+)/g
     if (!tokenPattern.test(children)) return children
     tokenPattern.lastIndex = 0
 
     const parts = children.split(tokenPattern)
     return parts.map((part, i) => {
       if (mathMap.has(part)) {
-        const { html, display } = mathMap.get(part)!
-        if (display) {
-          return (
-            <div
-              key={i}
-              className="my-6 overflow-x-auto text-center"
-              dir="ltr"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          )
-        }
+        const html = renderKatex(mathMap.get(part)!, false)
         return (
           <span
             key={i}
@@ -89,16 +105,14 @@ function replaceTokens(children: React.ReactNode, mathMap: Map<string, { html: s
 
   if (Array.isArray(children)) {
     return children.map((child, i) => (
-      <React.Fragment key={i}>{replaceTokens(child, mathMap)}</React.Fragment>
+      <React.Fragment key={i}>{replaceInlineTokens(child, mathMap)}</React.Fragment>
     ))
   }
 
-  // Handle React elements: recursively process their children
   if (React.isValidElement(children)) {
     const props = children.props as Record<string, unknown>
     if ('children' in props && props.children != null) {
-      const newChildren = replaceTokens(props.children as React.ReactNode, mathMap)
-      // If children didn't change, return original element
+      const newChildren = replaceInlineTokens(props.children as React.ReactNode, mathMap)
       if (newChildren === props.children) return children
       return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
         children: newChildren,
@@ -109,11 +123,15 @@ function replaceTokens(children: React.ReactNode, mathMap: Map<string, { html: s
   return children
 }
 
+/* ── Reading time ────────────────────────────────────────────────────── */
+
 function estimateReadingTime(content: string): number {
   const wordsPerMinute = 200
   const words = content.trim().split(/\s+/).length
   return Math.max(1, Math.ceil(words / wordsPerMinute))
 }
+
+/* ── Code block with copy ────────────────────────────────────────────── */
 
 function CodeBlock({ language, codeString }: { language: string; codeString: string }) {
   const [copied, setCopied] = useState(false)
@@ -124,7 +142,6 @@ function CodeBlock({ language, codeString }: { language: string; codeString: str
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // fallback
       const textarea = document.createElement('textarea')
       textarea.value = codeString
       document.body.appendChild(textarea)
@@ -140,11 +157,7 @@ function CodeBlock({ language, codeString }: { language: string; codeString: str
     <div className="my-5 rounded-xl overflow-hidden">
       <div
         className="px-4 py-2.5 text-xs font-medium flex items-center justify-between"
-        style={{
-          backgroundColor: '#060D1A',
-          color: '#808080',
-          direction: 'ltr',
-        }}
+        style={{ backgroundColor: '#060D1A', color: '#808080', direction: 'ltr' }}
       >
         <span style={{ fontWeight: 600 }}>{language}</span>
         <button
@@ -183,6 +196,8 @@ function CodeBlock({ language, codeString }: { language: string; codeString: str
   )
 }
 
+/* ── Reading progress bar ────────────────────────────────────────────── */
+
 function ReadingProgressBar() {
   const [progress, setProgress] = useState(0)
 
@@ -193,16 +208,12 @@ function ReadingProgressBar() {
       const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0
       setProgress(Math.min(100, scrollPercent))
     }
-
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
   return (
-    <div
-      className="fixed top-0 left-0 right-0 h-[2px] z-50"
-      style={{ backgroundColor: '#0A1128' }}
-    >
+    <div className="fixed top-0 left-0 right-0 h-[2px] z-50" style={{ backgroundColor: '#0A1128' }}>
       <div
         className="h-full transition-[width] duration-150 ease-out"
         style={{
@@ -215,6 +226,107 @@ function ReadingProgressBar() {
   )
 }
 
+/* ── Markdown segment with inline math support ───────────────────────── */
+
+function MarkdownSegment({ content, inlineMathMap }: { content: string; inlineMathMap: Map<string, string> }) {
+  const tokenized = useMemo(() => tokenizeInlineMath(content, inlineMathMap), [content, inlineMathMap])
+
+  return (
+    <ReactMarkdown
+      components={{
+        code({ className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || '')
+          const isInline = !match
+          const codeString = String(children).replace(/\n$/, '')
+          if (isInline) {
+            return (
+              <code
+                className="px-1.5 py-0.5 rounded text-sm"
+                style={{
+                  backgroundColor: '#1C39BB20',
+                  color: '#FF5E00',
+                  border: '1px solid #1C39BB30',
+                  direction: 'ltr',
+                  fontWeight: 600,
+                  fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                }}
+                {...props}
+              >
+                {children}
+              </code>
+            )
+          }
+          return <CodeBlock language={match[1]} codeString={codeString} />
+        },
+        h1({ children }) {
+          return (
+            <h1 className="text-2xl font-bold mb-4 mt-10 pb-3" style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}>
+              {replaceInlineTokens(children, inlineMathMap)}
+            </h1>
+          )
+        },
+        h2({ children }) {
+          return (
+            <h2 className="text-xl font-bold mb-3 mt-10 pb-2" style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}>
+              {replaceInlineTokens(children, inlineMathMap)}
+            </h2>
+          )
+        },
+        h3({ children }) {
+          return (
+            <h3 className="text-lg font-bold mb-2 mt-8" style={{ color: '#F5F5F5' }}>
+              {replaceInlineTokens(children, inlineMathMap)}
+            </h3>
+          )
+        },
+        p({ children }) {
+          return (
+            <p className="text-base leading-[1.9] my-5" style={{ color: '#B0B0B0' }}>
+              {replaceInlineTokens(children, inlineMathMap)}
+            </p>
+          )
+        },
+        strong({ children }) {
+          return <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>{replaceInlineTokens(children, inlineMathMap)}</strong>
+        },
+        em({ children }) {
+          return <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>{replaceInlineTokens(children, inlineMathMap)}</em>
+        },
+        ul({ children }) {
+          return <ul className="list-disc list-inside my-4 space-y-2.5" style={{ color: '#B0B0B0' }}>{children}</ul>
+        },
+        ol({ children }) {
+          return <ol className="list-decimal list-inside my-4 space-y-2.5" style={{ color: '#B0B0B0' }}>{children}</ol>
+        },
+        li({ children }) {
+          return <li className="text-base leading-relaxed pl-2">{replaceInlineTokens(children, inlineMathMap)}</li>
+        },
+        blockquote({ children }) {
+          return (
+            <blockquote className="border-r-4 pr-5 py-3 my-6 rounded-r-lg" style={{ borderColor: '#0066FF', backgroundColor: '#0066FF08', color: '#B0B0B0' }}>
+              {replaceInlineTokens(children, inlineMathMap)}
+            </blockquote>
+          )
+        },
+        a({ href, children }) {
+          return (
+            <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]" style={{ color: '#0066FF' }}>
+              {replaceInlineTokens(children, inlineMathMap)}
+            </a>
+          )
+        },
+        hr() {
+          return <hr className="my-10" style={{ borderColor: '#1C39BB20' }} />
+        },
+      }}
+    >
+      {tokenized}
+    </ReactMarkdown>
+  )
+}
+
+/* ── Main component ──────────────────────────────────────────────────── */
+
 export default function BlogPostPage() {
   const { selectedBlogPost, goBack } = useNavigationStore()
 
@@ -223,9 +335,13 @@ export default function BlogPostPage() {
     [selectedBlogPost]
   )
 
-  // Pre-process math BEFORE ReactMarkdown
-  const { processed: processedContent, mathMap } = useMemo(
-    () => post ? preProcessMath(post.content) : { processed: '', mathMap: new Map() },
+  const segments = useMemo(
+    () => post ? parseContent(post.content) : [],
+    [post]
+  )
+
+  const inlineMathMap = useMemo(
+    () => post ? buildInlineMathMap(post.content) : new Map(),
     [post]
   )
 
@@ -238,17 +354,11 @@ export default function BlogPostPage() {
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
           className="text-center py-20"
         >
-          <p className="text-2xl mb-6" style={{ color: '#F5F5F5' }}>
-            پست یافت نشد
-          </p>
+          <p className="text-2xl mb-6" style={{ color: '#F5F5F5' }}>پست یافت نشد</p>
           <button
             onClick={goBack}
             className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors duration-300"
-            style={{
-              backgroundColor: '#1C39BB15',
-              color: '#F5F5F5',
-              border: '1px solid #1C39BB30',
-            }}
+            style={{ backgroundColor: '#1C39BB15', color: '#F5F5F5', border: '1px solid #1C39BB30' }}
           >
             <ArrowRight size={16} />
             <span>بازگشت به بلاگ</span>
@@ -261,6 +371,7 @@ export default function BlogPostPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6" dir="rtl">
       <ReadingProgressBar />
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -277,14 +388,10 @@ export default function BlogPostPage() {
           <span>بازگشت</span>
         </button>
 
-        <h1
-          className="text-2xl md:text-3xl font-bold mb-6"
-          style={{ color: '#F5F5F5' }}
-        >
+        <h1 className="text-2xl md:text-3xl font-bold mb-6" style={{ color: '#F5F5F5' }}>
           {post.title}
         </h1>
 
-        {/* Meta */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <div className="flex items-center gap-1.5" style={{ color: '#B0B0B0' }}>
             <Calendar size={14} />
@@ -300,221 +407,46 @@ export default function BlogPostPage() {
           </div>
         </div>
 
-        {/* Tags */}
         <div className="flex items-center gap-2 flex-wrap">
           {post.tags.map((tag) => (
             <span
               key={tag}
               className="text-xs px-2.5 py-1 rounded-full"
-              style={{
-                backgroundColor: '#FF5E0015',
-                color: '#FF5E00',
-                border: '1px solid #FF5E0030',
-              }}
+              style={{ backgroundColor: '#FF5E0015', color: '#FF5E00', border: '1px solid #FF5E0030' }}
             >
               {tag}
             </span>
           ))}
         </div>
 
-        {/* Divider */}
-        <div
-          className="mt-6 mb-2"
-          style={{ height: '1px', backgroundColor: '#1C39BB20' }}
-        />
+        <div className="mt-6 mb-2" style={{ height: '1px', backgroundColor: '#1C39BB20' }} />
       </motion.div>
 
       {/* Content */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{
-          duration: 0.6,
-          delay: 0.15,
-          ease: [0.25, 0.1, 0.25, 1],
-        }}
+        transition={{ duration: 0.6, delay: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
       >
         <div
           className="rounded-xl p-6 md:p-10"
-          style={{
-            backgroundColor: '#0A1128',
-            border: '1px solid #1C39BB20',
-          }}
+          style={{ backgroundColor: '#0A1128', border: '1px solid #1C39BB20' }}
         >
           <div className="markdown-content" dir="rtl">
-            <ReactMarkdown
-              components={{
-                code({ className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  const isInline = !match
-                  const codeString = String(children).replace(/\n$/, '')
-
-                  if (isInline) {
-                    // Check if inline code contains a math token
-                    const tokenMatch = codeString.match(/^(MATHINLINE\d+)$/);
-                    if (tokenMatch && mathMap.has(codeString)) {
-                      const { html } = mathMap.get(codeString)!;
-                      return (
-                        <span
-                          dir="ltr"
-                          className="inline"
-                          dangerouslySetInnerHTML={{ __html: html }}
-                        />
-                      );
-                    }
-                    return (
-                      <code
-                        className="px-1.5 py-0.5 rounded text-sm"
-                        style={{
-                          backgroundColor: '#1C39BB20',
-                          color: '#FF5E00',
-                          border: '1px solid #1C39BB30',
-                          direction: 'ltr',
-                          fontWeight: 600,
-                          fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
-                        }}
-                        {...props}
-                      >
-                        {replaceTokens(children, mathMap)}
-                      </code>
-                    )
-                  }
-
-                  return <CodeBlock language={match[1]} codeString={codeString} />
-                },
-                h1({ children }) {
-                  return (
-                    <h1
-                      className="text-2xl font-bold mb-4 mt-10 pb-3"
-                      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}
-                    >
-                      {replaceTokens(children, mathMap)}
-                    </h1>
-                  )
-                },
-                h2({ children }) {
-                  return (
-                    <h2
-                      className="text-xl font-bold mb-3 mt-10 pb-2"
-                      style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}
-                    >
-                      {replaceTokens(children, mathMap)}
-                    </h2>
-                  )
-                },
-                h3({ children }) {
-                  return (
-                    <h3
-                      className="text-lg font-bold mb-2 mt-8"
-                      style={{ color: '#F5F5F5' }}
-                    >
-                      {replaceTokens(children, mathMap)}
-                    </h3>
-                  )
-                },
-                p({ children }) {
-                  // Check if the paragraph is purely a display math token
-                  const text = typeof children === 'string' ? children.trim() : '';
-                  const displayMatch = text.match(/^MATHBLOCK(\d+)$/);
-                  if (displayMatch && mathMap.has(text)) {
-                    const { html } = mathMap.get(text)!;
-                    return (
-                      <div
-                        className="my-6 overflow-x-auto text-center"
-                        dir="ltr"
-                        dangerouslySetInnerHTML={{ __html: html }}
-                      />
-                    );
-                  }
-                  return (
-                    <p
-                      className="text-base leading-[1.9] my-5"
-                      style={{ color: '#B0B0B0' }}
-                    >
-                      {replaceTokens(children, mathMap)}
-                    </p>
-                  )
-                },
-                strong({ children }) {
-                  return (
-                    <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>
-                      {replaceTokens(children, mathMap)}
-                    </strong>
-                  )
-                },
-                em({ children }) {
-                  return (
-                    <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>
-                      {replaceTokens(children, mathMap)}
-                    </em>
-                  )
-                },
-                ul({ children }) {
-                  return (
-                    <ul
-                      className="list-disc list-inside my-4 space-y-2.5"
-                      style={{ color: '#B0B0B0' }}
-                    >
-                      {children}
-                    </ul>
-                  )
-                },
-                ol({ children }) {
-                  return (
-                    <ol
-                      className="list-decimal list-inside my-4 space-y-2.5"
-                      style={{ color: '#B0B0B0' }}
-                    >
-                      {children}
-                    </ol>
-                  )
-                },
-                li({ children }) {
-                  return (
-                    <li className="text-base leading-relaxed pl-2">
-                      {replaceTokens(children, mathMap)}
-                    </li>
-                  )
-                },
-                blockquote({ children }) {
-                  return (
-                    <blockquote
-                      className="border-r-4 pr-5 py-3 my-6 rounded-r-lg"
-                      style={{
-                        borderColor: '#0066FF',
-                        backgroundColor: '#0066FF08',
-                        color: '#B0B0B0',
-                      }}
-                    >
-                      {replaceTokens(children, mathMap)}
-                    </blockquote>
-                  )
-                },
-                a({ href, children }) {
-                  return (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]"
-                      style={{ color: '#0066FF' }}
-                    >
-                      {replaceTokens(children, mathMap)}
-                    </a>
-                  )
-                },
-                hr() {
-                  return (
-                    <hr
-                      className="my-10"
-                      style={{ borderColor: '#1C39BB20' }}
-                    />
-                  )
-                },
-              }}
-            >
-              {processedContent}
-            </ReactMarkdown>
+            {segments.map((segment, i) => {
+              if (segment.type === 'display-math') {
+                const html = renderKatex(segment.formula, true)
+                return (
+                  <div
+                    key={i}
+                    className="my-6 overflow-x-auto text-center"
+                    dir="ltr"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                )
+              }
+              return <MarkdownSegment key={i} content={segment.content} inlineMathMap={inlineMathMap} />
+            })}
           </div>
         </div>
       </motion.div>
@@ -529,11 +461,7 @@ export default function BlogPostPage() {
         <button
           onClick={goBack}
           className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg transition-all duration-300 hover:brightness-110"
-          style={{
-            backgroundColor: '#1C39BB15',
-            color: '#F5F5F5',
-            border: '1px solid #1C39BB30',
-          }}
+          style={{ backgroundColor: '#1C39BB15', color: '#F5F5F5', border: '1px solid #1C39BB30' }}
         >
           <ArrowRight size={16} />
           <span>بازگشت به بلاگ</span>
@@ -541,11 +469,7 @@ export default function BlogPostPage() {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg transition-all duration-300 hover:brightness-110"
-          style={{
-            backgroundColor: '#FF5E0010',
-            color: '#FF5E00',
-            border: '1px solid #FF5E0025',
-          }}
+          style={{ backgroundColor: '#FF5E0010', color: '#FF5E00', border: '1px solid #FF5E0025' }}
         >
           بازگشت به بالا
         </button>
