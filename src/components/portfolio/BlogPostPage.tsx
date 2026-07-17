@@ -14,62 +14,126 @@ import React, { useMemo, useState, useEffect } from 'react'
 /* ── Segment types ───────────────────────────────────────────────────── */
 
 type Segment =
-  | { type: 'markdown'; content: string }     // text with $...$ tokens inside
+  | { type: 'markdown'; content: string; codeSpans: string[] } // text with math tokens inside; inline code kept aside as placeholders
   | { type: 'display-math'; formula: string }
+  | { type: 'code'; language: string; code: string }
+
+/* ── Token / placeholder schemes ─────────────────────────────────────── */
+/* Unique, collision-proof markers that markdown will pass through as text */
+
+const MATH_TOKEN_PREFIX = 'ZZKMATH'
+const MATH_TOKEN_SUFFIX = 'KZZ'
+const MATH_TOKEN_PATTERN = /(ZZKMATH\d+KZZ)/g
+const CODE_SPAN_OPEN = '\uE000' // private-use char (invisible, never appears in real content)
+const CODE_SPAN_CLOSE = '\uE001'
+const CODE_SPAN_PATTERN = /\uE000(\d+)\uE001/g
+
+/* ── HTML escaping (used for KaTeX error fallback) ───────────────────── */
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
 /* ── KaTeX render helper ─────────────────────────────────────────────── */
 
 function renderKatex(formula: string, displayMode: boolean): string {
   try {
-    return katex.renderToString(formula, { displayMode, throwOnError: false })
+    return katex.renderToString(formula, {
+      displayMode,
+      throwOnError: false,
+      strict: false,
+    })
   } catch {
-    return `<code style="color:red">${formula}</code>`
+    return `<code style="color:#ff6b6b" dir="ltr">${escapeHtml(formula)}</code>`
   }
 }
 
-/* ── Build math map for inline tokens ────────────────────────────────── */
-/* Uses (?<!\$) and (?!\$) to skip $$...$$ display math delimiters        */
+/* ── Inline math extraction (single pass → tokenized text + map) ─────── */
+/* One pass builds BOTH the tokenized string and the map, so tokens and  */
+/* formulas can never drift out of sync.                                 */
+/* (?<![\\$]) skips escaped dollars (\$) and $$ display delimiters.      */
 
-function buildInlineMathMap(content: string): Map<string, string> {
-  const map = new Map<string, string>()
+const INLINE_MATH_PATTERN = /(?<![\\$])\$([^\$\n]+?)\$(?!\$)/g
+
+function extractInlineMath(content: string): { tokenized: string; mathMap: Map<string, string> } {
+  const mathMap = new Map<string, string>()
   let counter = 0
-  const pattern = /(?<!\$)\$([^\$\n]+?)\$(?!\$)/g
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(content)) !== null) {
-    const token = `IMATH${counter++}`
-    map.set(token, match[1].trim())
-  }
-  return map
+  const tokenized = content.replace(INLINE_MATH_PATTERN, (_match, formula: string) => {
+    const token = `${MATH_TOKEN_PREFIX}${counter++}${MATH_TOKEN_SUFFIX}`
+    mathMap.set(token, formula.trim())
+    return token
+  })
+  return { tokenized, mathMap }
 }
 
-/* ── Replace inline $...$ with tokens in a text segment ──────────────── */
+/* ── Protect inline code spans (`...`) with placeholders ─────────────── */
+/* so that $ and $$ inside code are never treated as math.               */
 
-function tokenizeInlineMath(content: string, map: Map<string, string>): string {
-  let counter = 0
-  return content.replace(/(?<!\$)\$([^\$\n]+?)\$(?!\$)/g, () => {
-    const keys = Array.from(map.keys())
-    return keys[counter++] || '??'
+function protectCodeSpans(text: string): { text: string; codeSpans: string[] } {
+  const codeSpans: string[] = []
+  const protectedText = text.replace(/`([^`\n]+)`/g, (_match, code: string) => {
+    codeSpans.push(code)
+    return `${CODE_SPAN_OPEN}${codeSpans.length - 1}${CODE_SPAN_CLOSE}`
+  })
+  return { text: protectedText, codeSpans }
+}
+
+function restoreCodeSpans(text: string, codeSpans: string[]): string {
+  return text.replace(CODE_SPAN_PATTERN, (_match, index: string) => {
+    const code = codeSpans[Number(index)]
+    return code === undefined ? _match : `\`${code}\``
   })
 }
 
-/* ── Parse content: split at $$...$$ only, keep $...$ inside text ───── */
+/* ── Parse content: fenced code → $$...$$ → markdown ─────────────────── */
+/* Order matters: fenced code is carved out first so math delimiters     */
+/* inside code are never parsed; then display math; the rest is markdown.*/
+
+const FENCED_CODE_PATTERN = /```([^\n`]*)\n([\s\S]*?)```/g
+const DISPLAY_MATH_PATTERN = /\$\$([\s\S]+?)\$\$/g
 
 function parseContent(content: string): Segment[] {
   const segments: Segment[] = []
-  const displayPattern = /\$\$([\s\S]+?)\$\$/g
-  let lastIndex = 0
-  let match: RegExpExecArray | null
 
-  while ((match = displayPattern.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ type: 'markdown', content: content.slice(lastIndex, match.index) })
+  const pushTextChunk = (chunk: string) => {
+    if (!chunk) return
+    const { text, codeSpans } = protectCodeSpans(chunk)
+
+    DISPLAY_MATH_PATTERN.lastIndex = 0
+    let last = 0
+    let match: RegExpExecArray | null
+    while ((match = DISPLAY_MATH_PATTERN.exec(text)) !== null) {
+      if (match.index > last) {
+        segments.push({ type: 'markdown', content: text.slice(last, match.index), codeSpans })
+      }
+      segments.push({ type: 'display-math', formula: match[1].trim() })
+      last = match.index + match[0].length
     }
-    segments.push({ type: 'display-math', formula: match[1].trim() })
-    lastIndex = match.index + match[0].length
+    if (last < text.length) {
+      segments.push({ type: 'markdown', content: text.slice(last), codeSpans })
+    }
   }
 
+  FENCED_CODE_PATTERN.lastIndex = 0
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = FENCED_CODE_PATTERN.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      pushTextChunk(content.slice(lastIndex, match.index))
+    }
+    segments.push({
+      type: 'code',
+      language: match[1].trim() || 'text',
+      code: match[2].replace(/\n$/, ''),
+    })
+    lastIndex = match.index + match[0].length
+  }
   if (lastIndex < content.length) {
-    segments.push({ type: 'markdown', content: content.slice(lastIndex) })
+    pushTextChunk(content.slice(lastIndex))
   }
 
   return segments
@@ -82,11 +146,11 @@ function replaceInlineTokens(
   mathMap: Map<string, string>
 ): React.ReactNode {
   if (typeof children === 'string') {
-    const tokenPattern = /(IMATH\d+)/g
-    if (!tokenPattern.test(children)) return children
-    tokenPattern.lastIndex = 0
+    MATH_TOKEN_PATTERN.lastIndex = 0
+    if (!MATH_TOKEN_PATTERN.test(children)) return children
+    MATH_TOKEN_PATTERN.lastIndex = 0
 
-    const parts = children.split(tokenPattern)
+    const parts = children.split(MATH_TOKEN_PATTERN)
     return parts.map((part, i) => {
       if (mathMap.has(part)) {
         const html = renderKatex(mathMap.get(part)!, false)
@@ -94,7 +158,7 @@ function replaceInlineTokens(
           <span
             key={i}
             dir="ltr"
-            className="inline"
+            className="inline-block align-middle"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )
@@ -127,7 +191,7 @@ function replaceInlineTokens(
 
 function estimateReadingTime(content: string): number {
   const wordsPerMinute = 200
-  const words = content.trim().split(/\s+/).length
+  const words = content.trim().split(/\s+/).filter(Boolean).length
   return Math.max(1, Math.ceil(words / wordsPerMinute))
 }
 
@@ -154,7 +218,7 @@ function CodeBlock({ language, codeString }: { language: string; codeString: str
   }
 
   return (
-    <div className="my-5 rounded-xl overflow-hidden">
+    <div className="my-5 rounded-xl overflow-hidden" dir="ltr">
       <div
         className="px-4 py-2.5 text-xs font-medium flex items-center justify-between"
         style={{ backgroundColor: '#060D1A', color: '#808080', direction: 'ltr' }}
@@ -206,8 +270,9 @@ function ReadingProgressBar() {
       const scrollTop = window.scrollY
       const docHeight = document.documentElement.scrollHeight - window.innerHeight
       const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0
-      setProgress(Math.min(100, scrollPercent))
+      setProgress(Math.min(100, Math.max(0, scrollPercent)))
     }
+    handleScroll()
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
@@ -228,17 +293,30 @@ function ReadingProgressBar() {
 
 /* ── Markdown segment with inline math support ───────────────────────── */
 
-function MarkdownSegment({ content, inlineMathMap }: { content: string; inlineMathMap: Map<string, string> }) {
-  const tokenized = useMemo(() => tokenizeInlineMath(content, inlineMathMap), [content, inlineMathMap])
+function MarkdownSegment({ content, codeSpans }: { content: string; codeSpans: string[] }) {
+  // Single-pass tokenization guarantees each token maps to its own formula.
+  // Code spans are restored AFTER math extraction, so `$` inside code stays literal.
+  const { tokenized, mathMap } = useMemo(() => {
+    const extracted = extractInlineMath(content)
+    return {
+      tokenized: restoreCodeSpans(extracted.tokenized, codeSpans),
+      mathMap: extracted.mathMap,
+    }
+  }, [content, codeSpans])
 
   return (
     <ReactMarkdown
       components={{
-        code({ className, children, ...props }) {
+        pre({ children }) {
+          // Block code is rendered by the `code` override below; drop the <pre> wrapper.
+          return <>{children}</>
+        },
+        code({ className, children }) {
           const match = /language-(\w+)/.exec(className || '')
-          const isInline = !match
           const codeString = String(children).replace(/\n$/, '')
-          if (isInline) {
+          // Block = has a language, or contains newlines (fence without language / indented code)
+          const isBlock = Boolean(match) || codeString.includes('\n')
+          if (!isBlock) {
             return (
               <code
                 className="px-1.5 py-0.5 rounded text-sm"
@@ -247,50 +325,50 @@ function MarkdownSegment({ content, inlineMathMap }: { content: string; inlineMa
                   color: '#FF5E00',
                   border: '1px solid #1C39BB30',
                   direction: 'ltr',
+                  unicodeBidi: 'embed',
                   fontWeight: 600,
                   fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
                 }}
-                {...props}
               >
                 {children}
               </code>
             )
           }
-          return <CodeBlock language={match[1]} codeString={codeString} />
+          return <CodeBlock language={match ? match[1] : 'text'} codeString={codeString} />
         },
         h1({ children }) {
           return (
             <h1 className="text-2xl font-bold mb-4 mt-10 pb-3" style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB25' }}>
-              {replaceInlineTokens(children, inlineMathMap)}
+              {replaceInlineTokens(children, mathMap)}
             </h1>
           )
         },
         h2({ children }) {
           return (
             <h2 className="text-xl font-bold mb-3 mt-10 pb-2" style={{ color: '#F5F5F5', borderBottom: '1px solid #1C39BB15' }}>
-              {replaceInlineTokens(children, inlineMathMap)}
+              {replaceInlineTokens(children, mathMap)}
             </h2>
           )
         },
         h3({ children }) {
           return (
             <h3 className="text-lg font-bold mb-2 mt-8" style={{ color: '#F5F5F5' }}>
-              {replaceInlineTokens(children, inlineMathMap)}
+              {replaceInlineTokens(children, mathMap)}
             </h3>
           )
         },
         p({ children }) {
           return (
             <p className="text-base leading-[1.9] my-5" style={{ color: '#B0B0B0' }}>
-              {replaceInlineTokens(children, inlineMathMap)}
+              {replaceInlineTokens(children, mathMap)}
             </p>
           )
         },
         strong({ children }) {
-          return <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>{replaceInlineTokens(children, inlineMathMap)}</strong>
+          return <strong style={{ color: '#F5F5F5', fontWeight: 700 }}>{replaceInlineTokens(children, mathMap)}</strong>
         },
         em({ children }) {
-          return <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>{replaceInlineTokens(children, inlineMathMap)}</em>
+          return <em style={{ color: '#D0D0D0', fontStyle: 'italic' }}>{replaceInlineTokens(children, mathMap)}</em>
         },
         ul({ children }) {
           return <ul className="list-disc list-inside my-4 space-y-2.5" style={{ color: '#B0B0B0' }}>{children}</ul>
@@ -299,19 +377,19 @@ function MarkdownSegment({ content, inlineMathMap }: { content: string; inlineMa
           return <ol className="list-decimal list-inside my-4 space-y-2.5" style={{ color: '#B0B0B0' }}>{children}</ol>
         },
         li({ children }) {
-          return <li className="text-base leading-relaxed pl-2">{replaceInlineTokens(children, inlineMathMap)}</li>
+          return <li className="text-base leading-relaxed pl-2">{replaceInlineTokens(children, mathMap)}</li>
         },
         blockquote({ children }) {
           return (
             <blockquote className="border-r-4 pr-5 py-3 my-6 rounded-r-lg" style={{ borderColor: '#0066FF', backgroundColor: '#0066FF08', color: '#B0B0B0' }}>
-              {replaceInlineTokens(children, inlineMathMap)}
+              {replaceInlineTokens(children, mathMap)}
             </blockquote>
           )
         },
         a({ href, children }) {
           return (
             <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 transition-colors duration-300 hover:text-[#FF5E00]" style={{ color: '#0066FF' }}>
-              {replaceInlineTokens(children, inlineMathMap)}
+              {replaceInlineTokens(children, mathMap)}
             </a>
           )
         },
@@ -336,12 +414,7 @@ export default function BlogPostPage() {
   )
 
   const segments = useMemo(
-    () => post ? parseContent(post.content) : [],
-    [post]
-  )
-
-  const inlineMathMap = useMemo(
-    () => post ? buildInlineMathMap(post.content) : new Map(),
+    () => (post ? parseContent(post.content) : []),
     [post]
   )
 
@@ -367,6 +440,8 @@ export default function BlogPostPage() {
       </div>
     )
   }
+
+  const wordCount = post.content.trim().split(/\s+/).filter(Boolean).length
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6" dir="rtl">
@@ -403,12 +478,12 @@ export default function BlogPostPage() {
           </div>
           <div className="flex items-center gap-1.5" style={{ color: '#B0B0B0' }}>
             <BookOpen size={14} />
-            <span className="text-sm">{post.content.trim().split(/\s+/).length.toLocaleString('fa-IR')} کلمه</span>
+            <span className="text-sm">{wordCount.toLocaleString('fa-IR')} کلمه</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {post.tags.map((tag) => (
+          {(post.tags ?? []).map((tag) => (
             <span
               key={tag}
               className="text-xs px-2.5 py-1 rounded-full"
@@ -445,7 +520,10 @@ export default function BlogPostPage() {
                   />
                 )
               }
-              return <MarkdownSegment key={i} content={segment.content} inlineMathMap={inlineMathMap} />
+              if (segment.type === 'code') {
+                return <CodeBlock key={i} language={segment.language} codeString={segment.code} />
+              }
+              return <MarkdownSegment key={i} content={segment.content} codeSpans={segment.codeSpans} />
             })}
           </div>
         </div>

@@ -30,28 +30,43 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.*
 
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
+
+# logs
 *.log
 dev.log
 dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
+
+# local / editor
+local-*
+.claude
+.z-ai-config
+.mimocode/
+.zscripts/dev.pid
+
+# AI agent context
+agent-ctx/
+
+# Obsidian workspace
+blog posts/blog posts/
+
+# runtime data
+upload/
+download/
+db/*.db
+
+# skills
 /skills/
 
-# MiMoCode session data
-.mimocode/
+# npm lockfile (using bun)
+package-lock.json
